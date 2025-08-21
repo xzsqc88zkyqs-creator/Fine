@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>书宁的40节课进度</title>
+  <style>
+    :root{
+      --bg:#0f1115;
+      --card:#151821;
+      --ink:#e6e9ef;
+      --muted:#b6bcc8;
+      --brand:#5b9cff;
+      --brand-2:#9dd36f;
+      --accent:#ff7a90;
+      --ok:#2ecc71;
+      --warn:#ffb020;
+      --bad:#ff4757;
+      --ring:rgba(91,156,255,.35);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";
+      color:var(--ink);
+      background:radial-gradient(1200px 800px at 80% -10%,rgba(91,156,255,.15),transparent 60%),radial-gradient(900px 600px at -10% 110%,rgba(157,211,111,.15),transparent 60%),var(--bg);
+    }
+    .wrap{max-width:860px;margin:28px auto;padding:0 16px 40px}
+    header{display:flex;flex-wrap:wrap;align-items:center;gap:12px 16px;margin-bottom:18px}
+    h1{font-size:20px;margin:0}
+    .badges{display:flex;gap:8px;flex-wrap:wrap}
+    .badge{
+      padding:4px 10px;border-radius:999px;background:var(--card);color:var(--muted);border:1px solid rgba(255,255,255,.06);
+    }
+    .toolbar{
+      display:flex;flex-wrap:wrap;gap:10px;margin-left:auto;
+    }
+    .btn{
+      appearance:none;border:0;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer;
+      background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));
+      color:var(--ink);border:1px solid rgba(255,255,255,.08);
+      transition:.18s ease; box-shadow:0 0 0 0 var(--ring);
+    }
+    .btn:hover{transform:translateY(-1px)}
+    .btn:focus{outline:none;box-shadow:0 0 0 6px var(--ring)}
+    .btn.brand{background:linear-gradient(180deg,rgba(91,156,255,.5),rgba(91,156,255,.35));border-color:rgba(91,156,255,.6)}
+    .btn.reset{background:linear-gradient(180deg,rgba(255,122,144,.4),rgba(255,122,144,.25));border-color:rgba(255,122,144,.55)}
+    .btn.secondary{background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02))}
+    .progress{
+      background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);border-radius:12px;height:14px;position:relative;overflow:hidden;flex:1;min-width:200px;
+    }
+    .bar{height:100%;background:linear-gradient(90deg,var(--brand),var(--brand-2));width:0%;transition:width .3s ease}
+    .stats{display:flex;align-items:center;gap:10px;min-width:max-content;color:var(--muted)}
+    main{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:10px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}
+    .tile{
+      background:var(--card);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:10px;display:flex;gap:10px;align-items:center;
+    }
+    input[type="checkbox"]{width:18px;height:18px;accent-color:var(--brand);cursor:pointer}
+    .label{flex:1;color:var(--ink);opacity:.9}
+    .done .label{opacity:.5;text-decoration:line-through}
+    footer{display:flex;justify-content:space-between;align-items:center;color:var(--muted);margin-top:14px}
+    .hint{opacity:.75}
+    .link{color:var(--brand);text-decoration:none;border-bottom:1px dashed var(--brand);}
+    .count{font-variant-numeric:tabular-nums}
+    .toast{
+      position:fixed;right:16px;bottom:16px;background:var(--card);border:1px solid rgba(255,255,255,.08);color:var(--ink);padding:10px 12px;border-radius:10px;opacity:0;transform:translateY(8px);transition:.25s ease;pointer-events:none;
+    }
+    .toast.show{opacity:1;transform:translateY(0)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>书宁的40节课进度</h1>
+      <div class="badges">
+        <span class="badge">自动保存</span>
+        <span class="badge">离线可用</span>
+        <span class="badge">键盘: N 完成下一节, R 重置</span>
+      </div>
+      <div class="toolbar">
+        <button class="btn brand" id="btn-next" aria-label="完成下一节">完成下一节</button>
+        <button class="btn secondary" id="btn-export" aria-label="导出进度">导出</button>
+        <button class="btn secondary" id="btn-import" aria-label="导入进度">导入</button>
+        <button class="btn reset" id="btn-reset" aria-label="清空所有勾选">清空</button>
+      </div>
+      <div class="progress" aria-label="完成进度">
+        <div class="bar" id="bar"></div>
+      </div>
+      <div class="stats">
+        <span>完成 <b class="count" id="done-count">0</b>/40</span>
+      </div>
+    </header>
+    <main>
+      <div class="grid" id="grid"></div>
+      <footer>
+        <div class="hint">提示: 勾选或按 N 键快速勾下一节, 进度会自动保存到你的浏览器。</div>
+        <div>© 墨墨</div>
+      </footer>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+(() => {
+  const TOTAL = 40;
+  const KEY = 'class_tracker_v1'; // localStorage key
+  const grid = document.getElementById('grid');
+  const bar = document.getElementById('bar');
+  const doneCountEl = document.getElementById('done-count');
+  const toast = document.getElementById('toast');
+  const btnNext = document.getElementById('btn-next');
+  const btnReset = document.getElementById('btn-reset');
+  const btnExport = document.getElementById('btn-export');
+  const btnImport = document.getElementById('btn-import');
+
+  /** utils **/
+  const showToast = (msg) => {
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(()=>toast.classList.remove('show'), 1600);
+  };
+
+  const load = () => {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (!raw) return Array(TOTAL).fill(false);
+      const arr = JSON.parse(raw);
+      if (!Array.isArray(arr) || arr.length !== TOTAL) throw new Error('bad data');
+      return arr.map(v => !!v);
+    } catch (e) {
+      console.warn('进度数据损坏, 已重置', e);
+      return Array(TOTAL).fill(false);
+    }
+  };
+
+  const save = (arr) => {
+    localStorage.setItem(KEY, JSON.stringify(arr));
+  };
+
+  const state = { ticks: load() };
+
+  const updateUI = () => {
+    // update tiles checked classes
+    grid.querySelectorAll('.tile').forEach((tile, i)=>{
+      tile.classList.toggle('done', state.ticks[i]);
+      const box = tile.querySelector('input[type="checkbox"]');
+      box.checked = state.ticks[i];
+    });
+    const done = state.ticks.filter(Boolean).length;
+    const pct = (done / TOTAL) * 100;
+    bar.style.width = pct + '%';
+    doneCountEl.textContent = String(done);
+    document.title = `已完成 ${done}/${TOTAL} — 书宁的40节课进度`;
+  };
+
+  const render = () => {
+    grid.innerHTML = '';
+    for (let i=0;i<TOTAL;i++){
+      const tile = document.createElement('label');
+      tile.className = 'tile';
+      tile.innerHTML = `
+        <input type="checkbox" data-idx="${i}" aria-label="第${i+1}节完成与否">
+        <div class="label">第 ${String(i+1).padStart(2,'0')} 节</div>
+      `;
+      grid.appendChild(tile);
+    }
+    // events
+    grid.addEventListener('change', (e)=>{
+      const t = e.target;
+      if (t && t.matches('input[type="checkbox"]')) {
+        const idx = +t.getAttribute('data-idx');
+        state.ticks[idx] = t.checked;
+        save(state.ticks);
+        updateUI();
+      }
+    }, { passive:true });
+
+    updateUI();
+  };
+
+  const markNext = () => {
+    const idx = state.ticks.findIndex(v=>!v);
+    if (idx === -1){ showToast('40/40 全部完成'); return; }
+    state.ticks[idx] = true;
+    save(state.ticks);
+    updateUI();
+    // Smooth focus to marked item
+    const item = grid.children[idx];
+    if (item){ item.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+  };
+
+  const resetAll = () => {
+    if (!confirm('确定清空所有勾选吗？此操作不可撤销。')) return;
+    state.ticks = Array(TOTAL).fill(false);
+    save(state.ticks);
+    updateUI();
+    showToast('已清空');
+  };
+
+  const exportData = () => {
+    const blob = new Blob([JSON.stringify({ total: TOTAL, ticks: state.ticks }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'class-progress.json';
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(url), 2000);
+    showToast('已导出 JSON');
+  };
+
+  const importData = async () => {
+    const picker = document.createElement('input');
+    picker.type = 'file';
+    picker.accept = 'application/json';
+    picker.onchange = () => {
+      const f = picker.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const data = JSON.parse(reader.result);
+          if (!data || !Array.isArray(data.ticks) || data.ticks.length !== TOTAL) throw new Error('格式不符');
+          state.ticks = data.ticks.map(v=>!!v);
+          save(state.ticks);
+          updateUI();
+          showToast('导入成功');
+        } catch (e) {
+          alert('导入失败: 文件格式不正确');
+        }
+      };
+      reader.readAsText(f, 'utf-8');
+    };
+    picker.click();
+  };
+
+  // wire toolbar
+  btnNext.addEventListener('click', markNext);
+  btnReset.addEventListener('click', resetAll);
+  btnExport.addEventListener('click', exportData);
+  btnImport.addEventListener('click', importData);
+
+  // keyboard shortcuts
+  window.addEventListener('keydown', (e)=>{
+    if (['INPUT','TEXTAREA'].includes((e.target.tagName))) return;
+    if (e.key === 'n' || e.key === 'N'){ markNext(); }
+    if (e.key === 'r' || e.key === 'R'){ resetAll(); }
+  }, { passive:true });
+
+  // init
+  render();
+})();
+</script>
+</body>
+</html>
